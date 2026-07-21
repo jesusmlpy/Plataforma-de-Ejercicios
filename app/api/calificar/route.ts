@@ -33,17 +33,21 @@ Ejercicio: ${enunciado}${referencia}
 
 Respuesta del alumno: ${respuestaAlumno}
 
-Evalúa el razonamiento paso por paso, no solo si la conclusión final coincide con la
-respuesta correcta:
-- Identifica los pasos lógicos que el ejercicio requiere para llegar a la respuesta.
-- Sé conservador: si el alumno se salta un paso, lo justifica mal, o da un salto lógico
-  no explicado — aunque la conclusión final sea la correcta — marca "esCorrecto": false.
-  Una conclusión correcta sin razonamiento válido detrás no cuenta como correcta.
+Primero decide qué exige el enunciado:
+- Si el enunciado pide EXPLÍCITAMENTE justificar, explicar, verificar, demostrar, dar un
+  ejemplo/contraejemplo, o describir un patrón/proceso — evalúa el razonamiento paso a
+  paso, no solo la conclusión. Sé conservador: si el alumno se salta un paso, lo justifica
+  mal, o da un salto lógico no explicado, marca "esCorrecto": false aunque la conclusión
+  final sea la correcta. Una conclusión correcta sin la justificación pedida no cuenta.
+- Si el enunciado NO pide justificación explícita (ej. "ordena estos números", "calcula",
+  "encuentra el valor de", "escribe el opuesto") — basta con que la respuesta final sea
+  correcta. No exijas explicación que nadie pidió: producir el resultado correcto (la
+  lista bien ordenada, el valor correcto, etc.) ya demuestra que entendió.
 - No hace falta que use las mismas palabras que la referencia, solo que la idea
-  matemática sea válida Y esté justificada.
+  matemática sea válida (y esté justificada, únicamente si el enunciado lo pidió).
 
 Responde ÚNICAMENTE con este JSON, sin texto adicional ni backticks:
-{"esCorrecto": true o false, "comentario": "si es false, nombra específicamente cuál paso o parte del razonamiento falta o está mal — no un genérico 'está incorrecto'. Si es true, confirma en breve por qué el razonamiento completo es válido. Máximo 2 frases, tono amable."}`,
+{"esCorrecto": true o false, "comentario": "si es false, nombra específicamente cuál paso o parte del razonamiento falta o está mal — no un genérico 'está incorrecto'. Si es true, confirma en breve por qué está bien. Máximo 2 frases, tono amable."}`,
         },
       ],
     }),
