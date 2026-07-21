@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { crearClienteServidor } from "@/lib/supabaseServer";
 import { crearClienteServidorConSesion } from "@/lib/supabaseServerSesion";
 
@@ -44,6 +45,7 @@ Reglas:
 - Si un ejercicio pide graficar, dibujar, o cualquier otra representación visual sin una única respuesta de texto (y no es recta numérica ni relleno de blancos), usa "tipo_respuesta": "abierta" y "respuesta_correcta": null, y deja "tipo_interaccion" y "parametros" en null — todavía no hay más tipos de interacción soportados.
 - Si un ejercicio es de explicación/demostración sin respuesta numérica única, usa "tipo_respuesta": "abierta" y "respuesta_correcta": null.
 - "tipo_respuesta": "numerica" es SOLO para cuando la respuesta es un único valor o expresión corta que el alumno puede escribir tal cual (ej. "-8", "3/4"). Si la respuesta correcta tiene varias partes, una lista ordenada, unidades con explicación, una justificación ("Verdadero, porque...", "Falso, ej. ..."), o cualquier texto además del valor (ej. "-5 está más abajo", "a) +5 mil; b) mes 4"), usa "tipo_respuesta": "abierta" en vez de "numerica" — aunque el ejercicio sea de matemáticas y tenga una respuesta objetivamente correcta, si no es un solo valor exacto que se pueda comparar como texto, no es "numerica". En "respuesta_correcta" sigue guardando la respuesta completa (se usa como referencia para la calificación por IA, no para comparación exacta).
+- Si un ejercicio pide encontrar un único valor faltante dentro de una operación (ej. "(-7) + ___ = +2") y la respuesta es un solo valor que el alumno escribirá libremente en el cuadro de texto (no aplica relleno_blancos porque no hay una lista corta de opciones fijas — la respuesta es cualquier número), representa el espacio dentro del LaTeX con "\square" en vez de un guion bajo suelto — ej. "$(-7) + \square = +2$", nunca "$(-7) + \_ = +2$" ni "$(-7) + _ = +2$".
 - Para cualquier otro ejercicio, deja "tipo_interaccion" y "parametros" en null.
 - Llena "pista" con un consejo breve y amable (máximo 2 frases, tono de "ayudita", no de solucionario) que combine: (a) cómo debe expresar su respuesta el alumno — el formato esperado, si debe justificar, si lleva signo o unidades, etc. — y (b) una pequeña ayuda conceptual o el primer paso para resolverlo. Nunca reveles el resultado final ni hagas el cálculo completo en la pista.
 - Clasifica el "nivel" según la dificultad aparente del ejercicio dentro del documento.
@@ -81,9 +83,28 @@ export async function POST(req: NextRequest) {
 
     const supabase = crearClienteServidor();
 
-    // 1. Subir el PDF original a Supabase Storage
     const bytes = await archivo.arrayBuffer();
     const buffer = Buffer.from(bytes);
+
+    // 0. Evitar reprocesar el mismo PDF dos veces: si ya existe un tema con
+    // el mismo hash del archivo, no se vuelve a subir ni a mandar a Claude.
+    const pdfHash = createHash("sha256").update(buffer).digest("hex");
+    const { data: temaExistente } = await supabase
+      .from("temas")
+      .select("id, titulo")
+      .eq("pdf_hash", pdfHash)
+      .maybeSingle();
+
+    if (temaExistente) {
+      return NextResponse.json(
+        {
+          error: `Este PDF ya se subió antes como el tema "${temaExistente.titulo}". Si quieres agregar contenido nuevo, sube un archivo distinto.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    // 1. Subir el PDF original a Supabase Storage
     const nombreArchivo = `${Date.now()}-${archivo.name}`;
 
     const { error: errorSubida } = await supabase.storage
@@ -167,6 +188,7 @@ export async function POST(req: NextRequest) {
         titulo: extraido.titulo_tema,
         descripcion: extraido.descripcion,
         pdf_url: urlPublica.publicUrl,
+        pdf_hash: pdfHash,
         creado_por: user.id,
       })
       .select()

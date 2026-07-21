@@ -1,5 +1,7 @@
 import { crearClienteServidor } from "@/lib/supabaseServer";
+import { crearClienteServidorConSesion } from "@/lib/supabaseServerSesion";
 import Link from "next/link";
+import EjercicioInteractivo from "./tema/[id]/EjercicioInteractivo";
 
 // Esta página se renderiza en el servidor y siempre trae los temas
 // más recientes de la base de datos — por eso cuando subes un PDF nuevo,
@@ -15,6 +17,29 @@ export default async function PaginaInicio() {
 
   if (error) {
     return <p className="text-red-600">Error al cargar temas: {error.message}</p>;
+  }
+
+  // Repetición espaciada (Leitner): ejercicios de CUALQUIER tema cuya
+  // proxima_revision ya pasó para el alumno logueado. Solo aplica a
+  // ejercicios que ya se intentaron antes (repaso_programado se crea la
+  // primera vez que se responde uno, ver app/api/repaso/route.ts).
+  const supabaseSesion = crearClienteServidorConSesion();
+  const {
+    data: { user },
+  } = await supabaseSesion.auth.getUser();
+
+  let paraRepasar: any[] = [];
+  if (user) {
+    const { data } = await supabaseSesion
+      .from("repaso_programado")
+      .select(
+        "proxima_revision, ejercicio:ejercicios(id, numero, nivel, enunciado, tipo_respuesta, respuesta_correcta, opciones, tipo_interaccion, parametros, pista)"
+      )
+      .eq("alumno_id", user.id)
+      .lte("proxima_revision", new Date().toISOString())
+      .order("proxima_revision", { ascending: true })
+      .limit(20);
+    paraRepasar = (data ?? []).filter((r: any) => r.ejercicio);
   }
 
   if (!temas || temas.length === 0) {
@@ -44,6 +69,23 @@ export default async function PaginaInicio() {
 
   return (
     <div>
+      {paraRepasar.length > 0 && (
+        <section className="mb-10">
+          <h1 className="text-3xl font-extrabold text-violet-900 mb-1">Para repasar hoy</h1>
+          <p className="text-sm text-slate-600 mb-4">
+            {paraRepasar.length === 1
+              ? "Tienes 1 ejercicio listo para repasar."
+              : `Tienes ${paraRepasar.length} ejercicios listos para repasar.`}{" "}
+            Mezclados de todos los temas, según cuándo te tocaba verlos de nuevo.
+          </p>
+          <div className="space-y-3">
+            {paraRepasar.map((r: any) => (
+              <EjercicioInteractivo key={r.ejercicio.id} ejercicio={r.ejercicio} />
+            ))}
+          </div>
+        </section>
+      )}
+
       <h1 className="text-3xl font-extrabold text-violet-900 mb-6">Temas disponibles</h1>
       <div className="grid gap-4 sm:grid-cols-2">
         {temas.map((tema: any, i: number) => {

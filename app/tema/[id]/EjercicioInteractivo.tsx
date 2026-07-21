@@ -63,24 +63,32 @@ export default function EjercicioInteractivo({ ejercicio }: { ejercicio: Ejercic
   const [mostrarPista, setMostrarPista] = useState(false);
 
   // Gamificación global de la plataforma (puntos_totales/racha_actual/racha_maxima
-  // en "perfiles", ver app/api/gamificacion/route.ts) — independiente de este
-  // ejercicio o tema. Si no hay sesión, la API simplemente no guarda nada.
+  // en "perfiles", ver app/api/gamificacion/route.ts) y repetición espaciada
+  // tipo Leitner (ver app/api/repaso/route.ts) — ambas independientes de este
+  // ejercicio o tema en particular. Si no hay sesión, ninguna de las dos guarda nada.
   async function registrarResultado(acierto: boolean) {
     try {
-      const res = await fetch("/api/gamificacion", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nivel: ejercicio.nivel, acierto }),
-      });
-      const data = await res.json();
+      const [resGamificacion] = await Promise.all([
+        fetch("/api/gamificacion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nivel: ejercicio.nivel, acierto }),
+        }),
+        fetch("/api/repaso", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ejercicioId: ejercicio.id, acierto }),
+        }),
+      ]);
+      const data = await resGamificacion.json();
       if (acierto && typeof data.puntosGanados === "number" && data.puntosGanados > 0) {
         setPuntosGanados(data.puntosGanados);
         setTimeout(() => setPuntosGanados(null), 1200);
       }
-      router.refresh(); // refleja los puntos/racha nuevos en la insignia del header
+      router.refresh(); // refleja los puntos/racha y el "para repasar hoy" nuevos
     } catch {
       // Si falla la persistencia, el alumno igual ve su resultado local;
-      // solo no se actualizan puntos/racha esta vez.
+      // solo no se actualiza esta vez.
     }
   }
 

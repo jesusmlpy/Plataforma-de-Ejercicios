@@ -33,8 +33,17 @@ Ejercicio: ${enunciado}${referencia}
 
 Respuesta del alumno: ${respuestaAlumno}
 
-Evalúa si el razonamiento es correcto (no hace falta que use exactamente las mismas palabras que la referencia, solo que la idea matemática sea válida). Responde ÚNICAMENTE con este JSON, sin texto adicional ni backticks:
-{"esCorrecto": true o false, "comentario": "una frase breve y amable explicando qué falta o confirmando que está bien"}`,
+Evalúa el razonamiento paso por paso, no solo si la conclusión final coincide con la
+respuesta correcta:
+- Identifica los pasos lógicos que el ejercicio requiere para llegar a la respuesta.
+- Sé conservador: si el alumno se salta un paso, lo justifica mal, o da un salto lógico
+  no explicado — aunque la conclusión final sea la correcta — marca "esCorrecto": false.
+  Una conclusión correcta sin razonamiento válido detrás no cuenta como correcta.
+- No hace falta que use las mismas palabras que la referencia, solo que la idea
+  matemática sea válida Y esté justificada.
+
+Responde ÚNICAMENTE con este JSON, sin texto adicional ni backticks:
+{"esCorrecto": true o false, "comentario": "si es false, nombra específicamente cuál paso o parte del razonamiento falta o está mal — no un genérico 'está incorrecto'. Si es true, confirma en breve por qué el razonamiento completo es válido. Máximo 2 frases, tono amable."}`,
         },
       ],
     }),
