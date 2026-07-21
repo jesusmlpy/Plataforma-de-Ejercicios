@@ -51,9 +51,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4">
             {user && <InsigniaGamificacion puntosTotales={puntosTotales} rachaActual={rachaActual} />}
             {esProfesor && (
-              <Link href="/admin/upload" className="boton-juego bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap">
-                Subir PDF (profesor)
-              </Link>
+              <>
+                <Link href="/admin/progreso" className="boton-juego bg-white/20 hover:bg-white/30 text-white text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap">
+                  Progreso de alumnos
+                </Link>
+                <Link href="/admin/upload" className="boton-juego bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap">
+                  Subir PDF (profesor)
+                </Link>
+              </>
             )}
             {user ? (
               <CerrarSesionBoton />

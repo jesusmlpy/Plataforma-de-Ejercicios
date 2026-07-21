@@ -60,5 +60,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No se pudo actualizar el repaso." }, { status: 500 });
   }
 
+  // Deja registro del intento (para el panel de progreso del profesor,
+  // ver app/admin/progreso/page.tsx). Es un log — a diferencia de
+  // repaso_programado, aquí sí se inserta una fila nueva por cada respuesta.
+  // Si esto falla no tumbamos la petición: el repaso ya se guardó arriba.
+  await supabase.from("intentos").insert({
+    alumno_id: user.id,
+    ejercicio_id: ejercicioId,
+    es_correcto: acierto,
+  });
+
   return NextResponse.json({ ok: true, caja: cajaNueva, proximaRevision });
 }
