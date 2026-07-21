@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { crearClienteServidor } from "@/lib/supabaseServer";
+import { crearClienteServidorConSesion } from "@/lib/supabaseServerSesion";
 
 // ============================================================
 // POST /api/upload-pdf
@@ -26,19 +27,51 @@ Lee el PDF adjunto y devuelve ÚNICAMENTE un objeto JSON (sin texto adicional, s
       "enunciado": "el texto completo del ejercicio, en LaTeX inline con $...$ si hay notación matemática",
       "tipo_respuesta": "numerica | abierta | opcion_multiple",
       "respuesta_correcta": "string o null si tipo_respuesta es 'abierta'",
-      "opciones": null
+      "opciones": null,
+      "tipo_interaccion": "recta_numerica | relleno_blancos | null — qué componente visual usa el alumno para responder (ver reglas)",
+      "parametros": "objeto específico de tipo_interaccion, o null (ver reglas)",
+      "pista": "string — consejo breve (ver reglas)"
     }
   ]
 }
 
 Reglas:
 - Si el PDF ya trae una clave de respuestas, úsala para llenar "respuesta_correcta".
+- Si un ejercicio pide ubicar uno o más valores en una recta numérica, usa "tipo_interaccion": "recta_numerica", "tipo_respuesta": "abierta", "respuesta_correcta": null, y llena "parametros" con {"min": number, "max": number, "valores": [number, ...]} — "min"/"max" son el rango visible de la recta (deja un margen razonable alrededor de los valores) y "valores" son los puntos que el alumno debe ubicar.
+- Si un ejercicio tiene varios espacios en blanco a rellenar de una lista corta y fija de opciones (ej. "escribe <, > o = entre cada par", verdadero/falso, elegir el operador correcto), usa "tipo_interaccion": "relleno_blancos", "tipo_respuesta": "opcion_multiple", "respuesta_correcta": null, y:
+  - En "enunciado", reemplaza cada espacio en blanco por el texto literal "___" (tres guiones bajos, fuera de cualquier "$...$"), en el mismo orden en que aparecen. Ej.: "a) $-5$ ___ $2$ b) $-8$ ___ $-3$".
+  - Llena "parametros" con {"espacios": [{"opciones": ["<", ">", "="], "respuesta": "<"}, ...]} — un objeto por cada "___", en el mismo orden, cada uno con sus propias "opciones" (la lista corta de opciones válidas, ej. ["<", ">", "="] o ["Verdadero", "Falso"]) y su "respuesta" correcta individual.
+- Si un ejercicio pide graficar, dibujar, o cualquier otra representación visual sin una única respuesta de texto (y no es recta numérica ni relleno de blancos), usa "tipo_respuesta": "abierta" y "respuesta_correcta": null, y deja "tipo_interaccion" y "parametros" en null — todavía no hay más tipos de interacción soportados.
 - Si un ejercicio es de explicación/demostración sin respuesta numérica única, usa "tipo_respuesta": "abierta" y "respuesta_correcta": null.
+- "tipo_respuesta": "numerica" es SOLO para cuando la respuesta es un único valor o expresión corta que el alumno puede escribir tal cual (ej. "-8", "3/4"). Si la respuesta correcta tiene varias partes, una lista ordenada, unidades con explicación, una justificación ("Verdadero, porque...", "Falso, ej. ..."), o cualquier texto además del valor (ej. "-5 está más abajo", "a) +5 mil; b) mes 4"), usa "tipo_respuesta": "abierta" en vez de "numerica" — aunque el ejercicio sea de matemáticas y tenga una respuesta objetivamente correcta, si no es un solo valor exacto que se pueda comparar como texto, no es "numerica". En "respuesta_correcta" sigue guardando la respuesta completa (se usa como referencia para la calificación por IA, no para comparación exacta).
+- Para cualquier otro ejercicio, deja "tipo_interaccion" y "parametros" en null.
+- Llena "pista" con un consejo breve y amable (máximo 2 frases, tono de "ayudita", no de solucionario) que combine: (a) cómo debe expresar su respuesta el alumno — el formato esperado, si debe justificar, si lleva signo o unidades, etc. — y (b) una pequeña ayuda conceptual o el primer paso para resolverlo. Nunca reveles el resultado final ni hagas el cálculo completo en la pista.
 - Clasifica el "nivel" según la dificultad aparente del ejercicio dentro del documento.
 - No inventes ejercicios que no estén en el PDF.`;
 
 export async function POST(req: NextRequest) {
   try {
+    // El middleware ya bloquea /admin/upload sin sesión, pero la ruta de API
+    // se puede llamar directo, así que el chequeo de rol se repite aquí.
+    const supabaseSesion = crearClienteServidorConSesion();
+    const {
+      data: { user },
+    } = await supabaseSesion.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
+    }
+
+    const { data: perfil } = await supabaseSesion
+      .from("perfiles")
+      .select("rol")
+      .eq("id", user.id)
+      .single();
+
+    if (perfil?.rol !== "profesor") {
+      return NextResponse.json({ error: "Solo profesores pueden subir ejercicios." }, { status: 403 });
+    }
+
     const formData = await req.formData();
     const archivo = formData.get("pdf") as File | null;
 
@@ -77,7 +110,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 8000,
+        max_tokens: 16000,
         messages: [
           {
             role: "user",
@@ -112,6 +145,9 @@ export async function POST(req: NextRequest) {
         tipo_respuesta: string;
         respuesta_correcta: string | null;
         opciones: unknown;
+        tipo_interaccion: string | null;
+        parametros: unknown;
+        pista: string | null;
       }>;
     };
 
@@ -131,6 +167,7 @@ export async function POST(req: NextRequest) {
         titulo: extraido.titulo_tema,
         descripcion: extraido.descripcion,
         pdf_url: urlPublica.publicUrl,
+        creado_por: user.id,
       })
       .select()
       .single();
@@ -148,6 +185,9 @@ export async function POST(req: NextRequest) {
       tipo_respuesta: ej.tipo_respuesta,
       respuesta_correcta: ej.respuesta_correcta,
       opciones: ej.opciones ?? null,
+      tipo_interaccion: ej.tipo_interaccion ?? null,
+      parametros: ej.parametros ?? null,
+      pista: ej.pista ?? null,
     }));
 
     const { error: errorEjercicios } = await supabase.from("ejercicios").insert(filasEjercicios);

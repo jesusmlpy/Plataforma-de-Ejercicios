@@ -23,7 +23,7 @@ export default async function PaginaInicio() {
         <p className="text-lg">Todavía no hay ningún tema.</p>
         <p className="text-sm mt-2">
           Sube tu primer PDF de ejercicios desde{" "}
-          <Link href="/admin/upload" className="text-blue-700 underline">
+          <Link href="/admin/upload" className="text-violet-700 underline">
             el panel del profesor
           </Link>
           .
@@ -32,23 +32,41 @@ export default async function PaginaInicio() {
     );
   }
 
+  // Colores rotativos para que las fichas de tema se vean como niveles de
+  // un juego (cada tema con su propio color), no como una lista uniforme.
+  const COLORES = [
+    { borde: "border-sky-300", icono: "🔢" },
+    { borde: "border-emerald-300", icono: "📐" },
+    { borde: "border-amber-300", icono: "✖️" },
+    { borde: "border-fuchsia-300", icono: "📊" },
+    { borde: "border-rose-300", icono: "🧮" },
+  ];
+
   return (
     <div>
-      <h1 className="text-2xl font-bold text-blue-900 mb-6">Temas disponibles</h1>
-      <div className="grid gap-4">
-        {temas.map((tema: any) => (
-          <Link
-            key={tema.id}
-            href={`/tema/${tema.id}`}
-            className="block border border-slate-200 rounded-lg p-4 hover:border-blue-400 hover:shadow-sm transition bg-white"
-          >
-            <h2 className="text-lg font-semibold text-blue-800">{tema.titulo}</h2>
-            <p className="text-sm text-slate-600 mt-1">{tema.descripcion}</p>
-            <p className="text-xs text-slate-400 mt-2">
-              {tema.ejercicios?.[0]?.count ?? 0} ejercicios
-            </p>
-          </Link>
-        ))}
+      <h1 className="text-3xl font-extrabold text-violet-900 mb-6">Temas disponibles</h1>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {temas.map((tema: any, i: number) => {
+          const color = COLORES[i % COLORES.length];
+          return (
+            <Link
+              key={tema.id}
+              href={`/tema/${tema.id}`}
+              className={`tarjeta-juego ${color.borde} p-5 flex gap-4 items-start hover:-translate-y-1 hover:shadow-[0_10px_0_0_rgba(0,0,0,0.06)] transition-transform`}
+            >
+              <span className="text-4xl" aria-hidden="true">
+                {color.icono}
+              </span>
+              <div>
+                <h2 className="text-lg font-extrabold text-violet-900">{tema.titulo}</h2>
+                <p className="text-sm text-slate-600 mt-1">{tema.descripcion}</p>
+                <p className="text-xs font-bold text-slate-400 mt-2">
+                  {tema.ejercicios?.[0]?.count ?? 0} ejercicios
+                </p>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

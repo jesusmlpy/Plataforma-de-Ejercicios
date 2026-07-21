@@ -1,3 +1,49 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  /* Botón "de juego": look 3D con sombra sólida que se aplana al presionar,
+     como los botones grandes de Duolingo/apps para niños. */
+  .boton-juego {
+    @apply rounded-2xl font-bold shadow-[0_4px_0_0_rgba(0,0,0,0.25)]
+      transition-all duration-100 active:translate-y-1 active:shadow-none
+      disabled:opacity-50 disabled:active:translate-y-0
+      disabled:active:shadow-[0_4px_0_0_rgba(0,0,0,0.25)];
+  }
+
+  /* Tarjeta "de juego": esquinas muy redondeadas, borde grueso y una
+     sombra inferior sólida en vez de un blur difuso — más "sticker". */
+  .tarjeta-juego {
+    @apply rounded-3xl border-4 bg-white shadow-[0_6px_0_0_rgba(0,0,0,0.06)];
+  }
+}
+
+/* Animación simple al calificar un punto en RectaNumericaInteractiva */
+@keyframes pulso-resultado {
+  0% { r: 8; }
+  40% { r: 12; }
+  100% { r: 8; }
+}
+.animar-resultado {
+  animation: pulso-resultado 0.4s ease-out;
+}
+
+/* "+N" que aparece y se desvanece flotando hacia arriba al ganar puntos */
+@keyframes flotar-puntos {
+  0% { opacity: 0; transform: translateY(4px) scale(0.9); }
+  20% { opacity: 1; transform: translateY(0) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-18px) scale(1); }
+}
+.animar-puntos {
+  animation: flotar-puntos 1.2s ease-out forwards;
+}
+
+/* Fuego de la racha cuando está en su nivel más alto (7+) */
+@keyframes pulso-fuego {
+  0%, 100% { transform: scale(1); filter: hue-rotate(0deg); }
+  50% { transform: scale(1.15); filter: hue-rotate(-10deg); }
+}
+.animar-fuego {
+  animation: pulso-fuego 1s ease-in-out infinite;
+}

@@ -44,6 +44,24 @@ create table if not exists intentos (
   intentado_en timestamptz default now()
 );
 
+-- ---------- Crear perfil automáticamente al registrarse ----------
+-- Todo usuario nuevo entra como "alumno". Para volver a alguien "profesor",
+-- actualiza su fila manualmente desde el Table Editor de Supabase, o con:
+--   update perfiles set rol = 'profesor' where id = 'uuid-del-usuario';
+create or replace function public.crear_perfil_nuevo_usuario()
+returns trigger as $$
+begin
+  insert into public.perfiles (id, nombre, rol)
+  values (new.id, new.raw_user_meta_data->>'full_name', 'alumno');
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.crear_perfil_nuevo_usuario();
+
 -- ---------- Índices útiles ----------
 create index if not exists idx_ejercicios_tema on ejercicios(tema_id);
 create index if not exists idx_intentos_alumno on intentos(alumno_id);
@@ -76,3 +94,49 @@ create policy "alumno_crea_sus_intentos" on intentos for insert
 -- Cada quien ve y edita solo su propio perfil (los profesores se asignan manualmente por ti desde el dashboard de Supabase)
 create policy "perfil_propio_lectura" on perfiles for select using (auth.uid() = id);
 create policy "perfil_propio_edicion" on perfiles for update using (auth.uid() = id);
+
+-- ============================================================
+-- Migración: tipos de interacción (roadmap en el README → "Arquitectura:
+-- tipos de interacción"). tipo_interaccion decide QUÉ COMPONENTE VISUAL usa
+-- el alumno para responder, independiente de tipo_respuesta (que decide
+-- cómo se califica) — por ahora solo 'recta_numerica' tiene componente
+-- construido; el resto del catálogo es roadmap.
+-- Además reclasifica los ejercicios de "ubicar en la recta numérica" que ya
+-- estaban guardados con el flujo de texto libre (de antes de que existiera
+-- este componente), para que usen RectaNumericaInteractiva sin re-subir el PDF.
+-- Segura de correr aunque las columnas ya existan o corras esto de nuevo.
+-- ============================================================
+alter table ejercicios
+  add column if not exists tipo_interaccion text check (tipo_interaccion in (
+    'recta_numerica','plano_cartesiano','figura_geometrica','grafica_funcion',
+    'relleno_blancos','arrastrar_emparejar','opcion_multiple_visual'
+  )),
+  add column if not exists parametros jsonb;
+
+update ejercicios
+set
+  tipo_interaccion = 'recta_numerica',
+  parametros = jsonb_build_object('min', -10, 'max', 10, 'valores', jsonb_build_array(-7, 3, 0, -2, 6))
+where enunciado ilike 'Ubica en una recta numérica los siguientes números%'
+  and tipo_interaccion is null;
+
+-- ============================================================
+-- Migración: gamificación global (puntos, racha, nivel del alumno)
+-- No es por ejercicio ni por tema — vive en "perfiles" y suma en toda
+-- la plataforma. El nivel no se guarda, se calcula en el front a partir
+-- de puntos_totales (ver components/InsigniaGamificacion.tsx).
+-- Segura de correr aunque las columnas ya existan.
+-- ============================================================
+alter table perfiles
+  add column if not exists puntos_totales int not null default 0,
+  add column if not exists racha_actual int not null default 0,
+  add column if not exists racha_maxima int not null default 0;
+
+-- ============================================================
+-- Migración: pista por ejercicio — consejo breve y opcional (colapsado por
+-- defecto en la UI) que indica cómo debe expresarse la respuesta y da una
+-- ayuda conceptual para resolverlo, sin revelar el resultado.
+-- Segura de correr aunque la columna ya exista.
+-- ============================================================
+alter table ejercicios
+  add column if not exists pista text;
